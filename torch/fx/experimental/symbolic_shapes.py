@@ -254,10 +254,49 @@ if HAS_SYMPY:
 
         @classmethod
         def eval(cls, base, divisor):
+            # NOTE [ Checking types with SymPy ]
+            # Python has a dedicated complex type, but SymPy represents complex
+            # with Add exprs. So we cannot provide the same error message here
+            # as in Python floordiv because there's no easy way to distinguish
+            # an arbitrary Add expr from a complex number.
+            #
+            # isinstance doesn't work for arbitrary exprs and for Symbols, even
+            # when the latter have integer=True set during construction. So you
+            # are supposed to use the is_* properties, but it's also not always
+            # reliable as 0 has both is_integer and is_real set to True no
+            # matter whether it's constructed as a Float or an Integer.
+            #
+            # Also, booleans cannot be used in arithmetic exprs in SymPy and
+            # cannot be passed to the Integer and Float constructors.
+            # https://github.com/pytorch/pytorch/issues/90900
+            def check_supported_type(x):
+                # Note: is_real returns True for both Integer and Float, but
+                # let's be explicit here so this reflects the error message
+                # below.
+                if not x.is_integer and not x.is_real:
+                    raise TypeError(
+                        f"unsupported operand type(s) for //: "
+                        f"'{type(base).__name__}' and '{type(divisor).__name__}'"
+                        f", expected integer or real")
+
+            check_supported_type(base)
+            check_supported_type(divisor)
+
+            # We don't provide the same error message as in Python because SymPy
+            # makes it difficult to check the types:
+            # See NOTE [ Checking types with SymPy ]
+            if divisor.is_zero:
+                raise ZeroDivisionError("division by zero")
+
+            # We don't cast the return type as in Python because SymPy makes it
+            # difficult to check the types:
+            # See NOTE [ Checking types with SymPy ]
             if base == 0:
                 return sympy.Integer(0)
             if divisor == 1:
-                return base
+                return sympy.floor(base)
+            if base == divisor:
+                return sympy.Integer(1)
             if isinstance(base, sympy.Integer) and isinstance(divisor, sympy.Integer):
                 return base // divisor
             if isinstance(base, FloorDiv):
@@ -268,6 +307,9 @@ if HAS_SYMPY:
                 return FloorDiv(
                     sympy.simplify(base / gcd), sympy.simplify(divisor / gcd)
                 )
+            else:
+                return sympy.floor(base / divisor)
+
 
 # Methods that have a `__foo__` as well as `__rfoo__`
 reflectable_magic_methods = {

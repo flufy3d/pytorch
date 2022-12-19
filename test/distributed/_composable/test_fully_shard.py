@@ -9,19 +9,17 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import torch
 import torch.distributed as dist
+import torch.distributed.fsdp._traversal_utils as traversal_utils
 import torch.nn as nn
 from torch.distributed._composable import fully_shard
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp._common_utils import (
-    _FSDPState,
-    _get_fsdp_handles,
-    _is_fsdp_flattened,
-)
+from torch.distributed.fsdp._common_utils import _FSDPState, _is_fsdp_flattened
 from torch.distributed.fsdp.api import MixedPrecision
 from torch.distributed.fsdp.flat_param import _HandlesKey, FlatParamHandle
 from torch.distributed.fsdp.wrap import _FSDPPolicy, ModuleWrapPolicy
 from torch.testing._internal.common_dist_composable import (
     CompositeParamModel,
+    NestedSequentialModel,
     UnitModule,
 )
 from torch.testing._internal.common_distributed import (
@@ -59,12 +57,25 @@ class TestFSDPInitialization(FSDPTest):
     def test_policy(self):
         """Tests passing a ``policy`` for pseudo-auto-wrapping."""
         self.run_subtests(
-            {"policy": [None, ModuleWrapPolicy({UnitModule})]},
+            {
+                "policy": [
+                    None,
+                    ModuleWrapPolicy({UnitModule}),
+                    ModuleWrapPolicy({nn.Sequential}),
+                ],
+            },
             self._test_policy,
         )
 
     def _test_policy(self, policy: Optional[_FSDPPolicy]):
-        local_model = CompositeParamModel(torch.device("cuda"))
+        use_nested_sequential_model = "Sequential" in getattr(
+            policy, "_module_classes_str", ""
+        )
+        local_model = (
+            NestedSequentialModel(torch.device("cuda"))
+            if use_nested_sequential_model
+            else CompositeParamModel(torch.device("cuda"))
+        )
         fsdp_wrapped_model = FSDP(
             copy.deepcopy(local_model),
             auto_wrap_policy=policy,
@@ -119,14 +130,18 @@ class TestFSDPInitialization(FSDPTest):
 
         # Check that the composable module has the same  `FlatParameter`
         # construction as the FSDP-wrapped model
-        composable_handles = _get_fsdp_handles(composable_module)
-        fsdp_wrapped_handles = _get_fsdp_handles(fsdp_wrapped_model)
+        composable_handles = traversal_utils._get_fsdp_handles(composable_module)
+        fsdp_wrapped_handles = traversal_utils._get_fsdp_handles(fsdp_wrapped_model)
         self.assertEqual(len(composable_handles), len(fsdp_wrapped_handles))
         for (composable_handle, fsdp_wrapped_handle) in zip(
             composable_handles, fsdp_wrapped_handles
         ):
             self.assertEqual(
                 composable_handle.flat_param.shape, fsdp_wrapped_handle.flat_param.shape
+            )
+            self.assertEqual(
+                composable_handle.flat_param._fqns,
+                fsdp_wrapped_handle.flat_param._fqns,
             )
 
         # Check that the composable module does not add any wrapper class
@@ -381,8 +396,8 @@ class TestFSDPRuntime(FSDPTest):
         ) = self._init_models_and_optims(device, fsdp_wrap_mode)
         # Before checking the unshard/reshard order, sanity check that the
         # assumption about wrapper FQN being a suffix of composable FQN holds
-        all_composable_handles = _get_fsdp_handles(composable_module)
-        all_wrapped_handles = _get_fsdp_handles(fsdp_wrapped_model)
+        all_composable_handles = traversal_utils._get_fsdp_handles(composable_module)
+        all_wrapped_handles = traversal_utils._get_fsdp_handles(fsdp_wrapped_model)
         self._check_same_param_handles(all_composable_handles, all_wrapped_handles)
         num_handles = len(all_composable_handles)
 

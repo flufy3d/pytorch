@@ -240,7 +240,6 @@ class OutputGraph(fx.Tracer, Checkpointable[OutputGraphState]):
         self.unspec_variable_map: Dict[
             str, Union[UnspecializedNumpyVariable, UnspecializedPythonVariable]
         ] = {}
-        self.intermediary_symbols: Dict[sympy.Expr, None] = {}
 
         # Enables creating unique node names by tracking
         # all current placeholder node names
@@ -398,7 +397,6 @@ class OutputGraph(fx.Tracer, Checkpointable[OutputGraphState]):
             # Attrs that are tenors and symints and such need to be migrated to have their
             # own storage
             # alas, this is like this for now
-            self.intermediary_symbols.update({target.get_pyobj().expr: None})
 
             def wrap_name(module_key):
                 return DynamicShapeVariable.create(

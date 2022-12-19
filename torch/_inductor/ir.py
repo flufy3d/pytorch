@@ -3419,8 +3419,10 @@ class ConvolutionUnary(ExternKernelAlloc):
                 wrapper.mkldnn_param_utils_gen = True
                 wrapper.write_mkldnn_param_gen_utils()
             wrapper.writeline(f"{self.get_name()}_id = {random.getrandbits(32)}")
+            wrapper.writeline(f"param_args = [{', '.join(self.codegen_args())}]")
             wrapper.writeline(
-                f"{self.get_name()}_param = get_mkldnn_conv_param({self.get_name()}_id, {', '.join(self.codegen_args())})"
+                f"{self.get_name()}_param = get_mkldnn_param({self.get_name()}_id, \
+torch.ops.mkldnn._conv_param_generation, *param_args)"
             )
             wrapper.writeline(
                 f"{self.get_name()} = {self.kernel}({', '.join(self.codegen_args()) + ', ' + self.get_name() + '_param'})"
@@ -3479,8 +3481,10 @@ class ConvolutionBinary(ExternKernelAlloc):
                 wrapper.mkldnn_param_utils_gen = True
                 wrapper.write_mkldnn_param_gen_utils()
             wrapper.writeline(f"{self.get_name()}_id = {random.getrandbits(32)}")
+            wrapper.writeline(f"param_args = [{', '.join(self.codegen_args())}]")
             wrapper.writeline(
-                f"{self.get_name()}_param = get_mkldnn_conv_param_binary({self.get_name()}_id, {', '.join(self.codegen_args())})"
+                f"{self.get_name()}_param = get_mkldnn_param({self.get_name()}_id, \
+torch.ops.mkldnn._conv_param_generation_binary, *param_args)"
             )
             wrapper.writeline(
                 f"{self.get_name()} = {self.kernel}({', '.join(self.codegen_args()) + ', ' + self.get_name() + '_param'})"

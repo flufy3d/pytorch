@@ -30,6 +30,8 @@ cc_library(
     srcs = glob([
         "src/common/*.cpp",
         "src/cpu/**/*.cpp",
+    ], exclude=[
+        "src/cpu/aarch64/*.cpp",
     ]),
     hdrs = glob([
         "include/*.h",
@@ -38,7 +40,8 @@ cc_library(
         "src/cpu/**/*.hpp",
         "src/cpu/**/*.h",
         "src/common/*.hpp",
-        "src/cpu/rnn/*.hpp",
+    ], exclude=[
+        "src/cpu/aarch64/*.hpp",
     ]) + [
         "include/dnnl_version.h",
         "include/dnnl_config.h",

@@ -391,14 +391,20 @@ PyTorch is a BSD-style licensed, as found in the [LICENSE](LICENSE) file.
 
 
 ### build
+```
 set TORCH_CUDA_ARCH_LIST="3.5" 
 set BUILD_TEST="0" 
 python setup.py develop
+```
 
 ### gen wheel
+```
 python setup.py bdist_wheel
+```
 
 
 ### install
+```
 pip install path/to/your_project.whl
+```
 
